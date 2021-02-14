@@ -328,7 +328,7 @@ static __u32 get_fatent(fsdata *mydata, __u32 entry)
 		}
 		break;
 	}
-//	FAT_DPRINT("ret: %d, offset: %d\n", ret, offset);
+	FAT_DPRINT("ret: %d, offset: %d\n", ret, offset);
 
 	return ret;
 }
@@ -352,7 +352,7 @@ static int get_cluster(fsdata *mydata, __u32 clustnum, __u8 *buffer, unsigned lo
 	}
 
 	
-//	FAT_DPRINT("gc - clustnum: %d, startsect: %d\n", clustnum, startsect);
+	FAT_DPRINT("gc - clustnum: %d, startsect: %d\n", clustnum, startsect);
 	if(disk_read(startsect, size/FS_BLOCK_SIZE , buffer) < 0)
 	{
 		//FAT_DPRINT
