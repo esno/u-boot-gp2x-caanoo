@@ -1,0 +1,42 @@
+RANLIB = ranlib
+TARGET = libprototype.a
+OBJECT=\
+	mes_adc.o	\
+	mes_alive.o	\
+	mes_audio.o	\
+	mes_clkpwr.o	\
+	mes_csc.o	\
+	mes_dma.o	\
+	mes_dpc.o	\
+	mes_ecid.o	\
+	mes_gpio.o	\
+	mes_i2c.o	\
+	mes_intc.o	\
+	mes_mcud.o	\
+	mes_mcus.o	\
+	mes_mlc.o	\
+	mes_pwm.o	\
+	mes_rtc.o	\
+#	mes_sdhc.o	\
+	mes_sspspi.o	\
+	mes_timer.o	\
+	mes_uart.o	\
+
+CFLAGS = -fPIC -I./ -I../mes_base -DMES_RELEASE 
+
+VER = 1
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECT)
+	$(RM) $@
+	$(AR) q $@ $^
+	$(RANLIB) $@
+#	$(LD) -shared -soname $(TARGET).so.$(VER) -o $(TARGET).so.$(VER).0 $(LIBDIR) -lc $(OBJECT)
+
+clean:
+	rm -rf *.o
+	rm -rf *.a
+#	rm -rf *.so.*
+#	rm -rf *.so
+

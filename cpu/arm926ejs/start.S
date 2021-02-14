@@ -48,7 +48,6 @@
  *************************************************************************
  */
 
-
 .globl _start
 _start:
 	b	reset
@@ -121,6 +120,12 @@ FIQ_STACK_START:
 	.word 0x0badc0de
 #endif
 
+NFDATA:		.word	0xAC000000
+NFCMD:		.word	0xAC000010
+NFADDR:		.word	0xAC000018
+
+MEMNANDCTRLW:	    .word	0xC0015874
+
 
 /*
  * the actual reset code
@@ -134,7 +139,90 @@ reset:
 	bic	r0,r0,#0x1f
 	orr	r0,r0,#0xd3
 	msr	cpsr,r0
+    
+#ifdef CONFIG_GPH_N35
+    @ldr r5, _start	        @ R5 RAM base address */
+    mov	r5, #0x0	        @ R5 RAM base address */
+    mov	r6, #0x0	        @ R6 nand flash base page
+	mov	r9, #0x80	        @ R9 boot page size (252kb)
+    	
+/* Read loop */
+	mov r4, #0
+next_page:
+    mov r2, #0              @ R2 nand flash offset  
+read_command:
+	ldr r1, MEMNANDCTRLW
+	ldrh r0, [r1]
+	orr	r0, r0, #0x8000	
+	strh r0, [r1]
 
+    @ Set read cmd 
+	ldr	r1, NFCMD
+	mov	r0, #0x0
+	strb r0, [r1]
+
+	@ Set address 1
+	ldr	r1, NFADDR
+	mov	r0, r2			
+	strb r0, [r1]
+	@ Set address 2
+	mov	r0, r2, lsr #8
+	strb r0, [r1]
+	
+	@ Set address 3
+	mov	r0, r6 
+	strb r0, [r1]
+	@ Set address 4
+	mov	r0, r6, lsr #8
+	strb r0, [r1]
+	@ Set address 5     
+	mov	r0, r6, lsr #16
+	strb r0, [r1]
+    
+    @Set read end cmd 
+    ldr	r1, NFCMD
+    mov	r0, #0x30
+	strb r0, [r1]
+
+/*	Wait ready */
+wait_ready:
+	ldr	r1, MEMNANDCTRLW
+	ldrh r0, [r1]
+	and	r0, r0, #0x8000
+	cmp	r0, #0x8000
+	bne	wait_ready
+	ldrh r0, [r1]
+	orr	r0, r0, #0x8000	
+	strh r0, [r1]
+			
+/*	Get data */
+    mov r8, #0x0
+get_page:
+	ldr	r1, NFDATA
+	ldr	r0, [r1]
+	str	r0, [r5]
+	add	r8, r8, #0x4
+	add	r5, r5, #0x4
+	cmp	r8, #0x200
+	bne	get_page
+
+    add r2, r2, #0x200
+#   cmp r2, #0x1000             @ 4096
+    cmp r2, #0x800              @ 2048
+    bne read_command  
+    
+	add	r6, r6, #0x1
+	cmp	r6, r9
+	ble	next_page
+
+/*
+	ldr	pc, _real_boot_loader
+_real_boot_loader:	.word nand_relocate
+nand_relocate:
+*/
+
+#endif    /* CONFIG_GPH_N35_PLUS */
+    
 	/*
 	 * we do sys-critical inits only at reboot,
 	 * not when booting from ram!
@@ -143,10 +231,11 @@ reset:
 	bl	cpu_init_crit
 #endif
 
+
 #ifndef CONFIG_SKIP_RELOCATE_UBOOT
-relocate:				/* relocate U-Boot to RAM	    */
-	adr	r0, _start		/* r0 <- current position of code   */
-	ldr	r1, _TEXT_BASE		/* test if we run from flash or RAM */
+relocate:				            /* relocate U-Boot to RAM	    */
+	adr	r0, _start		            /* r0 <- current position of code   */
+	ldr	r1, _TEXT_BASE		        /* test if we run from flash or RAM */
 	cmp     r0, r1                  /* don't reloc during debug         */
 	beq     stack_setup
 
@@ -158,26 +247,26 @@ relocate:				/* relocate U-Boot to RAM	    */
 copy_loop:
 	ldmia	r0!, {r3-r10}		/* copy from source address [r0]    */
 	stmia	r1!, {r3-r10}		/* copy to   target address [r1]    */
-	cmp	r0, r2			/* until source end addreee [r2]    */
+	cmp	r0, r2			        /* until source end addreee [r2]    */
 	ble	copy_loop
 #endif	/* CONFIG_SKIP_RELOCATE_UBOOT */
 
-	/* Set up the stack						    */
+	/* Set up the stack	*/
 stack_setup:
-	ldr	r0, _TEXT_BASE		/* upper 128 KiB: relocated uboot   */
-	sub	r0, r0, #CFG_MALLOC_LEN	/* malloc area                      */
-	sub	r0, r0, #CFG_GBL_DATA_SIZE /* bdinfo                        */
+	ldr	r0, _TEXT_BASE		                /* upper 128 KiB: relocated uboot   */
+	sub	r0, r0, #CFG_MALLOC_LEN	            /* malloc area                      */
+	sub	r0, r0, #CFG_GBL_DATA_SIZE          /* bdinfo                        */
 #ifdef CONFIG_USE_IRQ
 	sub	r0, r0, #(CONFIG_STACKSIZE_IRQ+CONFIG_STACKSIZE_FIQ)
 #endif
-	sub	sp, r0, #12		/* leave 3 words for abort-stack    */
+	sub	sp, r0, #12		                    /* leave 3 words for abort-stack    */
 
 clear_bss:
-	ldr	r0, _bss_start		/* find start of bss segment        */
-	ldr	r1, _bss_end		/* stop here                        */
-	mov 	r2, #0x00000000		/* clear                            */
+	ldr	r0, _bss_start		                /* find start of bss segment        */
+	ldr	r1, _bss_end		                /* stop here                        */
+	mov 	r2, #0x00000000		            /* clear                            */
 
-clbss_l:str	r2, [r0]		/* clear loop...                    */
+clbss_l:str	r2, [r0]		                /* clear loop...                    */
 	add	r0, r0, #4
 	cmp	r0, r1
 	ble	clbss_l
@@ -198,7 +287,6 @@ _start_armboot:
  *
  *************************************************************************
  */
-
 
 cpu_init_crit:
 	/*
