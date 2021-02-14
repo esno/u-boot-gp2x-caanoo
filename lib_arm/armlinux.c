@@ -74,7 +74,8 @@ static struct tag *params;
 #endif
 
 extern image_header_t header;	/* from cmd_bootm.c */
-
+extern int up_filesystem;
+extern int board_rev;
 
 void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 		     ulong addr, ulong *len_ptr, int verify)
@@ -87,7 +88,21 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 	bd_t *bd = gd->bd;
 
 #ifdef CONFIG_CMDLINE_TAG
-	char *commandline = getenv ("bootargs");
+	//char *commandline = getenv ("bootargs");
+    //char *commandline = up_filesystem ? getenv ("ramdiskargs") : getenv ("bootargs");
+    char *commandline;
+    if(up_filesystem) {
+        commandline = getenv ("ramdiskargs");
+    }
+    else{
+
+#ifdef CONFIG_GPH_N35        
+        commandline = getenv ("bootargs4k");
+#else
+        commandline = getenv ("bootargs");
+#endif    
+    }
+    
 #endif
 
 	theKernel = (void (*)(int, int, uint))ntohl(hdr->ih_ep);
@@ -124,11 +139,12 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 		checksum = ntohl (hdr->ih_hcrc);
 		hdr->ih_hcrc = 0;
 
-		if (crc32 (0, (unsigned char *) data, len) != checksum) {
+        if (crc32 (0, (unsigned char *) data, len) != checksum) {
 			printf ("Bad Header Checksum\n");
 			SHOW_BOOT_PROGRESS (-11);
 			do_reset (cmdtp, flag, argc, argv);
 		}
+
 
 		SHOW_BOOT_PROGRESS (10);
 
@@ -143,8 +159,8 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 			data = CFG_LOAD_ADDR;
 		}
 #endif
-
-		if (verify) {
+    
+        if (verify) {
 			ulong csum = 0;
 
 			printf ("   Verifying Checksum ... ");
@@ -159,6 +175,7 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 
 		SHOW_BOOT_PROGRESS (11);
 
+
 		if ((hdr->ih_os != IH_OS_LINUX) ||
 		    (hdr->ih_arch != IH_CPU_ARM) ||
 		    (hdr->ih_type != IH_TYPE_RAMDISK)) {
@@ -171,6 +188,7 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 		/*
 		 *we need to copy the ramdisk to SRAM to let Linux boot
 		 */
+		
 		memmove ((void *) ntohl(hdr->ih_load), (uchar *)data, len);
 		data = ntohl(hdr->ih_load);
 #endif /* CONFIG_B2 || CONFIG_EVB4510 */
@@ -213,17 +231,27 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 #endif
 
 	if (data) {
+#if 0		
 		initrd_start = data;
 		initrd_end = initrd_start + len;
+#else
+        initrd_start = ntohl(hdr->ih_load);
+        initrd_end = initrd_start + len;
+        memmove((void *)initrd_start,(void*)data,len);
+        printf("ramdisk load address change from 0x%08 to 0x%08 with %u bytes \n",data, initrd_start,len);
+#endif	
 	} else {
 		initrd_start = 0;
 		initrd_end = 0;
 	}
 
+#if 0   /* HYUN */
 	SHOW_BOOT_PROGRESS (15);
 
 	debug ("## Transferring control to Linux (at address %08lx) ...\n",
 	       (ulong) theKernel);
+#endif
+
 
 #if defined (CONFIG_SETUP_MEMORY_TAGS) || \
     defined (CONFIG_CMDLINE_TAG) || \
@@ -257,6 +285,7 @@ void do_bootm_linux (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
 
 	/* we assume that the kernel is in place */
 	printf ("\nStarting kernel ...\n\n");
+    
 
 #ifdef CONFIG_USB_DEVICE
 	{

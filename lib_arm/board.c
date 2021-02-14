@@ -76,6 +76,10 @@ const char version_string[] =
 extern void cs8900_get_enetaddr (uchar * addr);
 #endif
 
+#ifdef CONFIG_DRIVER_DM9000A
+extern void DM9000_get_enetaddr (uchar * addr);
+#endif
+
 #ifdef CONFIG_DRIVER_RTL8019
 extern void rtl8019_get_enetaddr (uchar * addr);
 #endif
@@ -298,7 +302,7 @@ void start_armboot (void)
 
 #if (CONFIG_COMMANDS & CFG_CMD_NAND)
 	puts ("NAND:  ");
-	nand_init();		/* go init the NAND */
+	nand_init();		/* go init the NAND */ // ghcstop fix
 #endif
 
 #ifdef CONFIG_HAS_DATAFLASH
@@ -308,7 +312,7 @@ void start_armboot (void)
 
 	/* initialize environment */
 	env_relocate ();
-
+	
 #ifdef CONFIG_VFD
 	/* must do this after the framebuffer is allocated */
 	drv_vfd_init();
@@ -368,6 +372,12 @@ void start_armboot (void)
 	cs8900_get_enetaddr (gd->bd->bi_enetaddr);
 #endif
 
+#ifdef CONFIG_DRIVER_DM9000A
+	DM9000_get_enetaddr(gd->bd->bi_enetaddr);
+#endif
+
+
+
 #if defined(CONFIG_DRIVER_SMC91111) || defined (CONFIG_DRIVER_LAN91C96)
 	if (getenv ("ethaddr")) {
 		smc_set_mac_addr(gd->bd->bi_enetaddr);
@@ -378,6 +388,7 @@ void start_armboot (void)
 	if ((s = getenv ("loadaddr")) != NULL) {
 		load_addr = simple_strtoul (s, NULL, 16);
 	}
+
 #if (CONFIG_COMMANDS & CFG_CMD_NET)
 	if ((s = getenv ("bootfile")) != NULL) {
 		copy_filename (BootFile, s, sizeof (BootFile));
@@ -391,9 +402,12 @@ void start_armboot (void)
 #if defined(CONFIG_NET_MULTI)
 	puts ("Net:   ");
 #endif
+	puts("eth.....init\n");
 	eth_initialize(gd->bd);
 #endif
-	/* main_loop() can return to retry autoboot, if so just run it again. */
+
+
+    /* main_loop() can return to retry autoboot, if so just run it again. */
 	for (;;) {
 		main_loop ();
 	}
