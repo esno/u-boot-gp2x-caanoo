@@ -1,0 +1,5 @@
+#
+# MagicEyes POLLUX(ARM925EJS) cpu
+#
+
+TEXT_BASE = 0x07680000	
