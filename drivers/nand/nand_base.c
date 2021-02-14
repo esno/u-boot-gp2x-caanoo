@@ -391,6 +391,17 @@ static void nand_read_buf16(struct mtd_info *mtd, u_char *buf, int len)
 		p[i] = readw(this->IO_ADDR_R);
 }
 
+static void nand_read_buf32(struct mtd_info *mtd, uint8_t *buf, int len) 
+{
+	int i;
+	struct nand_chip *chip = mtd->priv;
+	u32 *p = (u32 *) buf;
+	len >>= 2;
+
+	for (i = 0; i < len; i++)
+		p[i] = readl(chip->IO_ADDR_R);
+}
+
 /**
  * nand_verify_buf16 - [DEFAULT] Verify chip data against buffer
  * @mtd:	MTD device structure
@@ -1123,7 +1134,7 @@ static int nand_read_ecc (struct mtd_info *mtd, loff_t from, size_t len,
 	int	oobreadlen;
 
 
-	DEBUG (MTD_DEBUG_LEVEL3, "nand_read_ecc: from = 0x%08x, len = %i\n", (unsigned int) from, (int) len);
+	//DEBUG (MTD_DEBUG_LEVEL3, "nand_read_ecc: from = 0x%08x, len = %i\n", (unsigned int) from, (int) len);
 
 	/* Do not allow reads past end of device */
 	if ((from + len) > mtd->size) {
@@ -1223,12 +1234,14 @@ static int nand_read_ecc (struct mtd_info *mtd, loff_t from, size_t len,
 		}
 
 		case NAND_ECC_SOFT:	/* Software ECC 3/256: Read in a page + oob data */
+			//printf("ghc_nand_read_ecc: ecc soft\n");
 			this->read_buf(mtd, data_poi, end);
 			for (i = 0, datidx = 0; eccsteps; eccsteps--, i+=3, datidx += ecc)
 				this->calculate_ecc(mtd, &data_poi[datidx], &ecc_calc[i]);
 			break;
 
 		default:
+			//printf("ghc_nand_read_ecc: default = %d\n", eccmode);
 			for (i = 0, datidx = 0; eccsteps; eccsteps--, i+=eccbytes, datidx += ecc) {
 				this->enable_hwecc(mtd, NAND_ECC_READ);
 				this->read_buf(mtd, &data_poi[datidx], ecc);
@@ -1594,7 +1607,16 @@ static u_char * nand_prepare_oobbuf (struct mtd_info *mtd, u_char *fsbuf, struct
 */
 static int nand_write (struct mtd_info *mtd, loff_t to, size_t len, size_t * retlen, const u_char * buf)
 {
-	return (nand_write_ecc (mtd, to, len, retlen, buf, NULL, NULL));
+	int rtn;
+	
+#ifdef POLLUX_NAND_WP // ghcstop fix
+	NAND_WP_OFF();
+	rtn = nand_write_ecc (mtd, to, len, retlen, buf, NULL, NULL);
+	NAND_WP_ON();
+#else
+	rtn = nand_write_ecc (mtd, to, len, retlen, buf, NULL, NULL);
+#endif
+	return (rtn);
 }
 
 /**
@@ -2081,7 +2103,17 @@ static void multi_erase_cmd (struct mtd_info *mtd, int page)
  */
 static int nand_erase (struct mtd_info *mtd, struct erase_info *instr)
 {
-	return nand_erase_nand (mtd, instr, 0);
+	int rtn;
+	
+#ifdef POLLUX_NAND_WP 
+	NAND_WP_OFF();
+	rtn = nand_erase_nand (mtd, instr, 0);
+	NAND_WP_ON();
+#else
+	rtn = nand_erase_nand (mtd, instr, 0);
+#endif
+
+	return rtn;
 }
 
 /**
@@ -2096,9 +2128,10 @@ int nand_erase_nand (struct mtd_info *mtd, struct erase_info *instr, int allowbb
 {
 	int page, len, status, pages_per_block, ret, chipnr;
 	struct nand_chip *this = mtd->priv;
-
+#if 0
 	DEBUG (MTD_DEBUG_LEVEL3,
 	       "nand_erase: start = 0x%08x, len = %i\n", (unsigned int) instr->addr, (unsigned int) instr->len);
+#endif
 
 	/* Start address must align on block boundary */
 	if (instr->addr & ((1 << this->phys_erase_shift) - 1)) {
@@ -2301,7 +2334,8 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 	if (!this->write_buf)
 		this->write_buf = busw ? nand_write_buf16 : nand_write_buf;
 	if (!this->read_buf)
-		this->read_buf = busw ? nand_read_buf16 : nand_read_buf;
+//		this->read_buf = busw ? nand_read_buf16 : nand_read_buf;
+		this->read_buf = nand_read_buf32;
 	if (!this->verify_buf)
 		this->verify_buf = busw ? nand_verify_buf16 : nand_verify_buf;
 	if (!this->scan_bbt)
@@ -2530,9 +2564,14 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		this->eccmode = NAND_ECC_NONE;
 		break;
 
-	case NAND_ECC_SOFT:
+	case NAND_ECC_SOFT:	
 		this->calculate_ecc = nand_calculate_ecc;
 		this->correct_data = nand_correct_data;
+#if 0	/* hyun */			
+		if( mtd->oobblock >= 2048){
+			this->eccsize = 512;
+		}
+#endif	
 		break;
 
 	default:
@@ -2572,9 +2611,15 @@ int nand_scan (struct mtd_info *mtd, int maxchips)
 		break;
 	case NAND_ECC_HW3_256:
 	case NAND_ECC_SOFT:
+#if 0	/* hyun */ 	
+		if( mtd->oobblock >= 2048)	
+			this->eccsteps = mtd->oobblock / 512;
+		else
+			this->eccsteps = mtd->oobblock / 256;		
+#else
 		this->eccsteps = mtd->oobblock / 256;
+#endif	
 		break;
-
 	case NAND_ECC_NONE:
 		this->eccsteps = 1;
 		break;

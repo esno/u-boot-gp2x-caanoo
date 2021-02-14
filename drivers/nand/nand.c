@@ -54,7 +54,6 @@ static void nand_init_chip(struct mtd_info *mtd, struct nand_chip *nand,
 			mtd->name = (char *)default_nand_name;
 	} else
 		mtd->name = NULL;
-
 }
 
 void nand_init(void)

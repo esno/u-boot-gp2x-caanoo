@@ -48,6 +48,8 @@ typedef struct mtd_info	  mtd_info_t;
 #define cpu_to_je16(x) (x)
 #define cpu_to_je32(x) (x)
 
+#define CFG_NAND_YAFFS1_NEW_OOB_LAYOUT
+
 /*****************************************************************************/
 static int nand_block_bad_scrub(struct mtd_info *mtd, loff_t ofs, int getchip)
 {
@@ -141,7 +143,7 @@ int nand_erase_opts(nand_info_t *meminfo, const nand_erase_options_t *opts)
 	 * check from erase() method, set block check method to dummy
 	 * and disable bad block table while erasing.
 	 */
-	if (opts->scrub || opts->format ) {
+	if (opts->scrub) {
 		struct nand_chip *priv_nand = meminfo->priv;
 
 		nand_block_bad_old = priv_nand->block_bad;
@@ -160,7 +162,7 @@ int nand_erase_opts(nand_info_t *meminfo, const nand_erase_options_t *opts)
         
         WATCHDOG_RESET ();
 
-		if (!opts->scrub && bbtest && !opts->format) {
+		if (!opts->scrub && bbtest) {
 			int ret = meminfo->block_isbad(meminfo, erase.addr);
 			if (ret > 0) {
 				if (!opts->quiet)
@@ -169,6 +171,7 @@ int nand_erase_opts(nand_info_t *meminfo, const nand_erase_options_t *opts)
 					       "                         \n",
 					       erase.addr);
 				continue;
+
 			} else if (ret < 0) {
 				printf("\n%s: MTD get bad block failed: %d\n",
 				       mtd_device,
@@ -234,7 +237,7 @@ int nand_erase_opts(nand_info_t *meminfo, const nand_erase_options_t *opts)
 	
 	if (!opts->quiet)
 		printf("\n");
-    
+
 	if (nand_block_bad_old) {
 		struct nand_chip *priv_nand = meminfo->priv;
 
@@ -346,6 +349,10 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 		struct nand_oobinfo *oobsel =
 			opts->forcejffs2 ? &jffs2_oobinfo : &yaffs_oobinfo;
 
+    /* HYUN_DEBUG */        
+#ifdef CFG_NAND_YAFFS1_NEW_OOB_LAYOUT      /* jffs2_oobinfo matches 2.6.18+ MTD nand_oob_16 ecclayout */
+       oobsel = &jffs2_oobinfo;
+#endif
 
 		
 		if (meminfo->oobsize == 8) {
@@ -450,7 +457,30 @@ int nand_write_opts(nand_info_t *meminfo, const nand_write_options_t *opts)
 			memcpy(oob_buf, buffer, meminfo->oobsize);
 			buffer += meminfo->oobsize;
 
-            /* write OOB data first, as ecc will be placed
+            if (opts->forceyaffs) {
+#ifdef CFG_NAND_YAFFS1_NEW_OOB_LAYOUT
+                /* translate OOB for yaffs1 on Linux 2.6.18+ */
+                oob_buf[15] = oob_buf[12];
+                oob_buf[14] = oob_buf[11];
+                oob_buf[13] = (oob_buf[7] & 0x3f)
+                    | (oob_buf[5] == 'Y' ? 0 : 0x80)
+                    | (oob_buf[4] == 0 ? 0 : 0x40);
+                oob_buf[12] = oob_buf[6];
+                oob_buf[11] = oob_buf[3];
+                oob_buf[10] = oob_buf[2];
+                oob_buf[9] = oob_buf[1];
+                oob_buf[8] = oob_buf[0];
+                memset(oob_buf, 0xff, 8);
+#else
+                /* set the ECC bytes to 0xff so MTD will
+                 calculate it */
+                int i;
+                for (i = 0; i < meminfo->oobinfo.eccbytes; i++)
+                    oob_buf[meminfo->oobinfo.eccpos[i]] = 0xff;
+#endif
+            }
+
+			/* write OOB data first, as ecc will be placed
 			 * in there*/
 			result = meminfo->write_oob(meminfo,
 						    mtdoffset,
