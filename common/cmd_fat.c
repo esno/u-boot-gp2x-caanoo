@@ -112,17 +112,15 @@ int do_fat_fsload (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		count = 0;
 	size = file_fat_read (argv[4], (unsigned char *) offset, count);
 
-	if(size==-1) {
+	if(size == -1) {
 		printf("\n** Unable to read \"%s\" from %s %d:%d **\n",argv[4],argv[1],dev,part);
-		return 1;
-	}
-
-	printf ("\n%ld bytes read\n", size);
-
-	sprintf(buf, "%lX", size);
-	setenv("filesize", buf);
-
-	return 0;
+	}else{
+        printf ("\n%ld bytes read\n", size);
+        sprintf(buf, "%lX", size);
+	    setenv("filesize", buf);
+    }
+    
+	return size;
 }
 
 

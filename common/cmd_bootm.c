@@ -170,9 +170,10 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	} else {
 		addr = simple_strtoul(argv[1], NULL, 16);
 	}
-
+#if 0   /* HYUN */
 	SHOW_BOOT_PROGRESS (1);
 	printf ("## Booting image at %08lx ...\n", addr);
+#endif
 
 	/* Copy header so we can blank CRC field for re-calculation */
 #ifdef CONFIG_HAS_DATAFLASH
@@ -222,13 +223,15 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 #endif
 
-
+#if 0   /* HYUN */
 	/* for multi-file images we need the data part, too */
 	print_image_hdr ((image_header_t *)addr);
+#endif
 
 	data = addr + sizeof(image_header_t);
 	len  = ntohl(hdr->ih_size);
 
+#ifndef CONFIG_NO_CRC   /* HYUN */
 	if (verify) {
 		puts ("   Verifying Checksum ... ");
 		if (crc32 (0, (uchar *)data, len) != ntohl(hdr->ih_dcrc)) {
@@ -239,7 +242,9 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		puts ("OK\n");
 	}
 	SHOW_BOOT_PROGRESS (4);
-
+#endif
+    
+    
 	len_ptr = (ulong *)data;
 
 #if defined(__PPC__)
@@ -376,8 +381,10 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		SHOW_BOOT_PROGRESS (-7);
 		return 1;
 	}
+#if 0	/* HYUN */
 	puts ("OK\n");
 	SHOW_BOOT_PROGRESS (7);
+#endif
 
 	switch (hdr->ih_type) {
 	case IH_TYPE_STANDALONE:

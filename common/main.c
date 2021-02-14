@@ -84,6 +84,7 @@ int do_mdm_init = 0;
 extern void mdm_init(void); /* defined in board.c */
 #endif
 
+
 /***************************************************************************
  * Watch for 'delay' seconds for autoboot stop or autoboot delay string.
  * returns: 0 -  no key string, allow autoboot
@@ -290,6 +291,272 @@ static __inline__ int abortboot(int bootdelay)
 # endif	/* CONFIG_AUTOBOOT_KEYED */
 #endif	/* CONFIG_BOOTDELAY >= 0  */
 
+
+#define SLC_PAGE_SIZE		2048
+#define SLC_BLK_SIZE		(SLC_PAGE_SIZE * 64)
+
+#define ERASE_ERROR			1
+#define WRITE_ERROR			2
+#define READ_ERROR			3
+#define BAD_CHK_ERROR		4
+#define RW_SIZE_ERROR		5
+
+
+int nand_area_format(void)
+{
+	char *nand_erase_img[]= { "nand", "eraseall", "0x800000", "0x7800000"};
+	int ret;
+	
+	ret = do_nand(NULL, 0, 5, nand_erase_img);
+	if(ret) {
+		ret = do_nand(NULL, 0, 5, nand_erase_img);
+		if(ret) {
+			printf(" NAND FORMAT ERROR \n");
+			return ERASE_ERROR;
+		}
+	}
+}
+
+#define UBOOT_MAX_BLOCK		2
+int nand_write_boot(void)
+{
+	char *nand_write_img[]= { "nand", "write", "0x1000000", "0x0","0x20000" };
+	char *nand_bad_img[]= { "nand", "isbad", "0x0" };
+	char *nand_erase_img[]= { "nand", "erase", "0x0", "0x20000"};
+	
+	char start_addr[15];
+	char mem_addr[15];
+	
+	ulong memadr = CFG_FW_ADDR;
+	int ret,i, wflag, startblk = 0;
+	
+	nand_bad_img[2] = start_addr; 
+	nand_erase_img[2]= start_addr;
+	nand_write_img[3] = start_addr;
+	nand_write_img[2] = mem_addr;
+	
+	while(startblk < UBOOT_MAX_BLOCK)
+	{
+		wflag = 0;
+		sprintf(start_addr, "0x%08lx", (startblk * SLC_BLK_SIZE ));
+		ret = do_nand(NULL, 0, 5, nand_bad_img);
+		if(ret) {
+			printf(" BOOT BAD BLCOK CHECK ERROR : %d \n", startblk);
+			return BAD_CHK_ERROR;
+		}	
+
+again_erase:		
+		ret = do_nand(NULL, 0, 5, nand_erase_img);
+		if(ret) {
+			ret = do_nand(NULL, 0, 5, nand_erase_img);
+			if(ret) {
+				printf(" BOOT BLOCK ERASE ERROR: %d \n", startblk);
+				return ERASE_ERROR;
+			}
+		}	
+		
+		sprintf(mem_addr, "0x%08lx", memadr);
+		ret = do_nand(NULL, 0, 5, nand_write_img);
+		if(ret){
+			if(!wflag) {
+				wflag = 1;
+				goto again_erase;
+			}else {
+				printf(" BOOT BLOCK WRITE ERROR: %d \n", startblk);
+				return WRITE_ERROR;
+			}		
+		} 	
+		
+		startblk++;
+		memadr += SLC_BLK_SIZE;
+	}	
+	return 0;	
+}
+
+int nand_read_boot(void)
+{
+	char *nand_read_img[]= { "nand", "read", "0x2000000", "0x0","0x20000" };
+	char *nand_bad_img[]= { "nand", "isbad", "0x0" };
+	
+	char start_addr[15];
+	char mem_addr[15];
+	
+	ulong memadr = CFG_KERNEL_LOAD_ADDR;
+	int ret,i, startblk = 0;
+	
+	nand_bad_img[2] = start_addr; 
+	nand_read_img[2] = mem_addr;
+	nand_read_img[3] = start_addr;
+	
+	while(startblk < UBOOT_MAX_BLOCK)
+	{
+		sprintf(start_addr, "0x%08lx", (startblk * SLC_BLK_SIZE ));
+		ret = do_nand(NULL, 0, 5, nand_bad_img);
+		if(ret) {
+			printf(" BOOT BAD BLCOK CHECK ERROR : %d \n", startblk);
+			return BAD_CHK_ERROR;
+		}	
+		
+		sprintf(mem_addr, "0x%08lx", memadr);
+		ret = do_nand(NULL, 0, 5, nand_read_img);
+		if(ret){
+			ret = do_nand(NULL, 0, 5, nand_read_img);
+			if(ret){	
+				printf(" BOOT BLOCK READ ERROR: %d \n", startblk);
+				return READ_ERROR;
+			}		
+		}
+		startblk++;
+		memadr += SLC_BLK_SIZE;
+	}	
+	return 0;			
+}
+
+#define KERNEL_MAX_BLOCK		26      //3.25MB
+#define KERNEL_BLOCK_CNT		12	//max 1.5MB
+#define START_KERNEL_BLOCK1		4
+#define START_KERNEL_BLOCK2		(START_KERNEL_BLOCK1 + KERNEL_MAX_BLOCK)  	
+int nand_write_kernel(int startblk)
+{
+	char *nand_write_img[]= { "nand", "write", "0x1000000", "0x0","0x20000" };
+	char *nand_bad_img[]= { "nand", "isbad", "0x0" };
+	char *nand_erase_img[]= { "nand", "erase", "0x0", "0x20000"};
+	
+	char start_addr[15];
+	char mem_addr[15];
+	
+	ulong memadr = CFG_FW_ADDR;
+	int ret,i, wflag, org_blk = startblk;
+	int ncnt_blk = 0;
+	
+	nand_bad_img[2] = start_addr; 
+	nand_erase_img[2]= start_addr;
+	nand_write_img[3] = start_addr;
+	nand_write_img[2] = mem_addr;
+	
+	while(startblk < (KERNEL_MAX_BLOCK + org_blk))
+	{
+		wflag = 0;
+		sprintf(start_addr, "0x%08lx", (startblk * SLC_BLK_SIZE ));
+		ret = do_nand(NULL, 0, 5, nand_bad_img);
+		if(!ret){
+again_erase:		
+			ret = do_nand(NULL, 0, 5, nand_erase_img);
+			if(ret) {
+				ret = do_nand(NULL, 0, 5, nand_erase_img);
+				if(ret) {
+					printf(" KERNEL BLOCK ERASE ERROR: %d \n", startblk);
+					return ERASE_ERROR;
+				}
+			}	
+		
+			sprintf(mem_addr, "0x%08lx", memadr);
+			ret = do_nand(NULL, 0, 5, nand_write_img);
+			if(ret){
+				if(!wflag) {
+					wflag = 1;
+					goto again_erase;
+				}else {
+					printf(" KERNEL BLOCK WRITE ERROR: %d \n", startblk);
+					return WRITE_ERROR;
+				}		
+			} 			
+			ncnt_blk++;
+			startblk++;
+			memadr += SLC_BLK_SIZE;
+		}else{
+			/* skip bad block */
+			printf("KERNEL_WRITE : skip bad block(%d) \n",startblk);
+			startblk++;
+		}
+		
+		if(ncnt_blk == KERNEL_BLOCK_CNT) 
+			return 0;		
+	}	
+	
+	if(ncnt_blk < KERNEL_BLOCK_CNT)
+		return RW_SIZE_ERROR;
+	
+	return 0;	
+}
+
+int nand_read_kernel(int startblk)
+{
+	char *nand_read_img[]= { "nand", "read", "0x2000000", "0x0","0x20000" };
+	char *nand_bad_img[]= { "nand", "isbad", "0x0" };
+	
+	char start_addr[15];
+	char mem_addr[15];
+	
+	ulong memadr = CFG_KERNEL_LOAD_ADDR;
+	int ret,org_blk = startblk;
+	int ncnt_blk = 0;
+	
+	nand_bad_img[2] = start_addr; 
+	nand_read_img[2] = mem_addr;
+	nand_read_img[3] = start_addr;
+	
+	while(startblk < (KERNEL_MAX_BLOCK + org_blk))
+	{
+		sprintf(start_addr, "0x%08lx", (startblk * SLC_BLK_SIZE ));
+		ret = do_nand(NULL, 0, 5, nand_bad_img);
+		if(!ret){		
+			sprintf(mem_addr, "0x%08lx", memadr);
+			ret = do_nand(NULL, 0, 5, nand_read_img);
+			if(ret){
+				ret = do_nand(NULL, 0, 5, nand_read_img);
+				if(ret){	
+					printf(" KERNEL BLOCK READ ERROR: %d \n", startblk);
+					return READ_ERROR;
+				}		
+			} 			
+			ncnt_blk++;
+			startblk++;
+			memadr += SLC_BLK_SIZE;
+		}else{
+			/* skip bad block */
+			printf("KERNEL_READ : skip bad block(%d) \n",startblk);
+			startblk++;
+		}
+		
+		if(ncnt_blk == KERNEL_BLOCK_CNT) 
+			return 0;		
+	}	
+
+	if(ncnt_blk < KERNEL_BLOCK_CNT) 
+		return RW_SIZE_ERROR;
+	
+	return 0;		
+}
+
+
+int verify_nand(unsigned long len)
+{	
+	unsigned long i;
+	unsigned long *src,*dst;
+	
+	src = (unsigned long *) CONFIG_LOADADDR; 
+	dst = (unsigned long *) CFG_LOAD_ADDR; 
+	
+	for(i=0; i<len; i+=4)
+	{
+		if(*src != *dst){
+			//printf("[ERROR] addr , src, dst : 0x%x  , 0x%x, 0x%x  \n", i ,*src, *dst);			
+			return 1;
+		}
+		src++; 
+		dst++;
+	}
+	
+	return 0;
+}
+
+
+
+/****************************************************************************/
+extern int mmc_init_once;
+ulong g_filesize = 0;
+int up_filesystem    = 0;
 /****************************************************************************/
 
 void main_loop (void)
@@ -300,6 +567,7 @@ void main_loop (void)
 	int rc = 1;
 	int flag;
 #endif
+	int second_kernel_block = 0;
 
 #if defined(CONFIG_BOOTDELAY) && (CONFIG_BOOTDELAY >= 0)
 	char *s;
@@ -400,9 +668,116 @@ void main_loop (void)
 	}
 	else
 #endif /* CONFIG_BOOTCOUNT_LIMIT */
-		s = getenv ("bootcmd");
 
-	debug ("### main_loop: bootcmd=\"%s\"\n", s ? s : "<UNDEFINED>");
+#if 1		
+	if(mmc_init_once == 1)
+	{
+		int size = 0;
+		int ret;
+		char *bootimg[]= { "fatload", "mmc", "0", "0x1000000", "polluxb-n35"	};
+		char *kernelimg[]={ "fatload", "mmc", "0", "0x1000000", "uImage-n35"	};
+	    char *ramdiskimg[]={ "fatload", "mmc", "0", "0x800000", "update.gz"		};
+        char *upkernelimg[]={ "fatload", "mmc", "0", "0x2000000", "uImageUP"	};
+        
+ 
+        unsigned char bShowLogo = 0;         
+        printf("BOOT UPDATE ----------------------------\n");
+		size = do_fat_fsload(NULL, 0, 5, bootimg);
+		printf("2 : g_filesize %x\n", g_filesize);
+		if(size != -1)
+		{
+			ulong length = 0x4000 * ((size/0x4000)+1);		
+			printf("polluxb Update %d 0x%x \n", size, length);
+            
+			if(bShowLogo == 0){
+				bShowLogo = 1;
+				show_Firmware();
+			}
+			
+			if(!nand_write_boot())
+			{
+				if(!nand_read_boot()){	
+					if(!verify_nand(size)){
+						boot_read_verify();
+						if(!verify_nand(size)){
+							printf(" Verify OK [BOOT]\n");
+						}else printf(" Verify error [BOOT]\n");		
+					}else printf(" Verify error [BOOT]\n");
+				}
+			}		
+		}
+		else printf("polluxb not found\n");
+        
+        printf("KERNEL UPDATE ----------------------------\n");
+		size = do_fat_fsload(NULL, 0, 5, kernelimg);
+		printf("2 : g_filesize %x\n", g_filesize);
+		if(size != -1)
+		{
+			ulong length = 0x4000 * ((size/0x4000)+1);		
+			printf("uImage Update %d 0x%x \n", size, length);
+
+			if(bShowLogo == 0){
+				bShowLogo = 1;
+				show_Firmware();
+			}
+            
+			if(!nand_write_kernel(START_KERNEL_BLOCK1))
+		   	{
+           		if(!nand_read_kernel(START_KERNEL_BLOCK1)){							
+      				if(verify_nand(size))
+      					printf(" Verify error [KERNEL ONE] \n");
+      				else printf(" Verify ok [KERNEL ONE] \n");
+      			}
+      		}
+      		
+           	if(!nand_write_kernel(START_KERNEL_BLOCK2))
+		   	{
+           		if(!nand_read_kernel(START_KERNEL_BLOCK2)){							
+      				if(verify_nand(size))
+      					printf(" Verify error [KERNEL TWO] \n");
+      				else printf(" Verify ok [KERNEL TWO] \n");
+      			}      			
+      		}           	
+		}
+		else printf("uImage not found\n");
+    
+        printf("UPDATE KERNEL LOAD ----------------------------\n");
+        size = -1;
+		size = do_fat_fsload(NULL, 0, 5, upkernelimg);
+		printf("2 : g_filesize %x\n", g_filesize);    
+
+        if(size != -1)
+		{		    
+		    size = -1;
+		    printf("UPDATE FILE SYSTEM LOAD -----------------------\n");
+		    size = do_fat_fsload(NULL, 0, 5, ramdiskimg);
+		    printf("2 : g_filesize %x\n", g_filesize);
+            if(size != -1)
+		    {   
+                up_filesystem = 1;
+                nand_area_format();
+                   
+			    if(bShowLogo == 0){
+				    bShowLogo = 1;
+				    show_Firmware(); /* nand format image */
+			    }
+
+	        }else printf("update.gz not found\n");
+	    }	    
+		else printf(" uimageUP not found\n");
+    }
+#endif
+    
+    if(!up_filesystem){        
+ 		if(nand_read_kernel(START_KERNEL_BLOCK1)){
+ 			nand_read_kernel(START_KERNEL_BLOCK2);
+ 			second_kernel_block = 1;
+ 		}		
+        s = getenv ("bootcmd");
+    }else{
+        s = getenv ("ramboot");
+    }
+    debug ("### main_loop: bootcmd=\"%s\"\n", s ? s : "<UNDEFINED>");
 
 	if (bootdelay >= 0 && s && !abortboot (bootdelay)) {
 # ifdef CONFIG_AUTOBOOT_KEYED
@@ -410,7 +785,18 @@ void main_loop (void)
 # endif
 
 # ifndef CFG_HUSH_PARSER
+
+#if 0	/* hyun */	
 		run_command (s, 0);
+#else		
+		if(run_command (s, 0)) {
+			if(!up_filesystem && !second_kernel_block){
+				 nand_read_kernel(START_KERNEL_BLOCK2);
+				 run_command (s, 0);
+			}
+		}	
+#endif 
+		
 # else
 		parse_string_outer(s, FLAG_PARSE_SEMICOLON |
 				    FLAG_EXIT_FROM_LOOP);
@@ -1256,6 +1642,7 @@ int run_command (const char *cmd, int flag)
 	int repeatable = 1;
 	int rc = 0;
 
+    
 #ifdef DEBUG_PARSER
 	printf ("[RUN_COMMAND] cmd[%p]=\"", cmd);
 	puts (cmd ? cmd : "NULL");	/* use puts - string may be loooong */
@@ -1274,7 +1661,7 @@ int run_command (const char *cmd, int flag)
 	}
 
 	strcpy (cmdbuf, cmd);
-
+    
 	/* Process separators and check for invalid
 	 * repeatable commands
 	 */
@@ -1316,27 +1703,29 @@ int run_command (const char *cmd, int flag)
 
 		/* find macros in this token and replace them */
 		process_macros (token, finaltoken);
-
+        
+        
 		/* Extract arguments */
 		if ((argc = parse_line (finaltoken, argv)) == 0) {
 			rc = -1;	/* no command at all */
 			continue;
 		}
-
+        
 		/* Look up command in command table */
 		if ((cmdtp = find_cmd(argv[0])) == NULL) {
 			printf ("Unknown command '%s' - try 'help'\n", argv[0]);
 			rc = -1;	/* give up after bad command */
 			continue;
 		}
-
+        
+        
 		/* found - check max args */
 		if (argc > cmdtp->maxargs) {
 			printf ("Usage:\n%s\n", cmdtp->usage);
 			rc = -1;
 			continue;
 		}
-
+        
 #if (CONFIG_COMMANDS & CFG_CMD_BOOTD)
 		/* avoid "bootd" recursion */
 		if (cmdtp->cmd == do_bootd) {
@@ -1352,7 +1741,7 @@ int run_command (const char *cmd, int flag)
 			}
 		}
 #endif	/* CFG_CMD_BOOTD */
-
+        
 		/* OK - call function to do the command */
 		if ((cmdtp->cmd) (cmdtp, flag, argc, argv) != 0) {
 			rc = -1;
@@ -1374,7 +1763,7 @@ int run_command (const char *cmd, int flag)
 int do_run (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
 {
 	int i;
-
+    
 	if (argc < 2) {
 		printf ("Usage:\n%s\n", cmdtp->usage);
 		return 1;

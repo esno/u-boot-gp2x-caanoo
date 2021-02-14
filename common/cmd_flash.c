@@ -323,6 +323,28 @@ int do_flerase (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return 1;
 	}
 
+	if(flag)
+    {
+        if(flag == CFG_FW_BOOT)
+        {
+            sect_first = CFG_FW_BSSECT;
+            sect_last = CFG_FW_BESECT;
+        }
+        else if(flag == CFG_FW_KERNEL)    
+        {
+            sect_first = CFG_FW_KSSECT;
+            sect_last = CFG_FW_KESECT;
+        }    
+        
+        info = &flash_info[0];
+        printf ("Erase Flash Sectors %d-%d in Bank # %d ",
+			sect_first, sect_last, 1);
+		rcode = flash_erase(info, sect_first, sect_last);
+		
+		return rcode;
+	}	    
+	
+	
 	if (strcmp(argv[1], "all") == 0) {
 		for (bank=1; bank<=CFG_MAX_FLASH_BANKS; ++bank) {
 			printf ("Erase Flash Bank # %ld ", bank);
@@ -332,6 +354,8 @@ int do_flerase (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return rcode;
 	}
 
+    
+    
 	if ((n = abbrev_spec(argv[1], &info, &sect_first, &sect_last)) != 0) {
 		if (n < 0) {
 			puts ("Bad sector specification\n");
@@ -339,9 +363,13 @@ int do_flerase (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		}
 		printf ("Erase Flash Sectors %d-%d in Bank # %d ",
 			sect_first, sect_last, (info-flash_info)+1);
+		
 		rcode = flash_erase(info, sect_first, sect_last);
+		
 		return rcode;
 	}
+    
+    
 
 #if (CONFIG_COMMANDS & CFG_CMD_JFFS2) && defined(CONFIG_JFFS2_CMDLINE)
 	/* erase <part-id> - erase partition */
@@ -387,6 +415,8 @@ int do_flerase (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return rcode;
 	}
 
+    
+	printf("addr_first:%d  addr_last:%d \n",addr_first, addr_last);
 	if (addr_spec(argv[1], argv[2], &addr_first, &addr_last) < 0){
 		printf ("Bad address format\n");
 		return 1;
@@ -462,6 +492,32 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return 1;
 	}
 
+    if(flag)
+    {
+        p = 0;
+        
+        if(flag == CFG_FW_BOOT)
+        {
+            sect_first = CFG_FW_BSSECT;
+            sect_last = CFG_FW_BESECT;
+        }
+        else if(flag == CFG_FW_KERNEL)    
+        {
+            sect_first = CFG_FW_KSSECT;
+            sect_last = CFG_FW_KESECT;
+        }    
+        
+        info = &flash_info[0];
+        
+        printf("%sProtect Flash Sectors %d-%d in Bank # %d\n",
+			p ? "" : "Un-", sect_first, sect_last,1);
+		for (i = sect_first; i <= sect_last; i++) 
+		    info->protect[i] = p;
+	    
+	    return 0;
+	}	    
+    
+
 	if (strcmp(argv[1], "off") == 0) {
 		p = 0;
 	} else if (strcmp(argv[1], "on") == 0) {
@@ -471,12 +527,13 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return 1;
 	}
 
+
 #ifdef CONFIG_HAS_DATAFLASH
 	if ((strcmp(argv[2], "all") != 0) && (strcmp(argv[2], "bank") != 0)) {
 		addr_first = simple_strtoul(argv[2], NULL, 16);
 		addr_last  = simple_strtoul(argv[3], NULL, 16);
-
-		if (addr_dataflash(addr_first) && addr_dataflash(addr_last)) {
+        
+        if (addr_dataflash(addr_first) && addr_dataflash(addr_last)) {
 			status = dataflash_real_protect(p,addr_first,addr_last);
 			if (status < 0){
 				puts ("Bad DataFlash sector specification\n");
@@ -488,13 +545,14 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		}
 	}
 #endif
-
-	if (strcmp(argv[2], "all") == 0) {
+    
+    if (strcmp(argv[2], "all") == 0) {
 		for (bank=1; bank<=CFG_MAX_FLASH_BANKS; ++bank) {
 			info = &flash_info[bank-1];
 			if (info->flash_id == FLASH_UNKNOWN) {
 				continue;
 			}
+			
 			printf ("%sProtect Flash Bank # %ld\n",
 				p ? "" : "Un-", bank);
 
@@ -519,11 +577,13 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			puts ("Bad sector specification\n");
 			return 1;
 		}
+		
 		printf("%sProtect Flash Sectors %d-%d in Bank # %d\n",
 			p ? "" : "Un-", sect_first, sect_last,
 			(info-flash_info)+1);
 		for (i = sect_first; i <= sect_last; i++) {
 #if defined(CFG_FLASH_PROTECTION)
+			
 			if (flash_real_protect(info, i, p))
 				rcode =  1;
 			putc ('.');
@@ -536,6 +596,7 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		if (!rcode) puts (" done\n");
 #endif	/* CFG_FLASH_PROTECTION */
 
+		
 		return rcode;
 	}
 
@@ -603,8 +664,10 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		return rcode;
 	}
 
+    
+
 	if (addr_spec(argv[2], argv[3], &addr_first, &addr_last) < 0){
-		printf("Bad address format\n");
+		printf("Bad address format......\n");
 		return 1;
 	}
 
@@ -612,6 +675,8 @@ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		printf ("Usage:\n%s\n", cmdtp->usage);
 		return 1;
 	}
+	
+	printf("p:%d  addr_first:%d   addr_last\n", p, addr_first, addr_last);
 	rcode = flash_sect_protect (p, addr_first, addr_last);
 	return rcode;
 }
@@ -634,8 +699,10 @@ int flash_sect_protect (int p, ulong addr_first, ulong addr_last)
 
 	protected = 0;
 
-	if (planned && (rcode == 0)) {
-		for (bank=0,info=&flash_info[0]; bank < CFG_MAX_FLASH_BANKS; ++bank, ++info) {
+	if (planned && (rcode == 0)) 
+	{
+		for (bank=0,info=&flash_info[0]; bank < CFG_MAX_FLASH_BANKS; ++bank, ++info) 
+		{
 			if (info->flash_id == FLASH_UNKNOWN) {
 				continue;
 			}
@@ -660,13 +727,13 @@ int flash_sect_protect (int p, ulong addr_first, ulong addr_last)
 		puts (" done\n");
 #endif	/* CFG_FLASH_PROTECTION */
 
-		printf ("%sProtected %d sectors\n",
-			p ? "" : "Un-", protected);
+		printf ("%sProtected %d sectors\n", p ? "" : "Un---", protected);
 	} else if (rcode == 0) {
 		puts ("Error: start and/or end address"
 			" not on sector boundary\n");
 		rcode = 1;
 	}
+	
 	return rcode;
 }
 

@@ -31,7 +31,7 @@
 
 #include <common.h>
 
-#if defined(CFG_ENV_IS_IN_NAND) /* Environment is in Nand Flash */
+#if defined(CFG_ENV_IS_IN_NAND)     /* Environment is in Nand Flash */
 
 #include <command.h>
 #include <environment.h>
@@ -58,7 +58,9 @@ int nand_legacy_rw (struct nand_chip* nand, int cmd,
 	    size_t * retlen, u_char * buf);
 
 /* info for NAND chips, defined in drivers/nand/nand.c */
+#ifndef CONFIG_GPH_N35
 extern nand_info_t nand_info[];
+#endif
 
 /* references to names in env_common.c */
 extern uchar default_environment[];
@@ -192,14 +194,22 @@ int saveenv(void)
 	int ret = 0;
 
 	puts ("Erasing Nand...");
+#ifndef CONFIG_GPH_N35	
 	if (nand_erase(&nand_info[0], CFG_ENV_OFFSET, CFG_ENV_SIZE))
 		return 1;
+#else
+    
+#endif
 
 	puts ("Writing to Nand... ");
 	total = CFG_ENV_SIZE;
+#ifndef CONFIG_GPH_N35	
 	ret = nand_write(&nand_info[0], CFG_ENV_OFFSET, &total, (u_char*)env_ptr);
 	if (ret || total != CFG_ENV_SIZE)
 		return 1;
+#else
+
+#endif
 
 	puts ("done\n");
 	return ret;
@@ -272,9 +282,13 @@ void env_relocate_spec (void)
 	int ret;
 
 	total = CFG_ENV_SIZE;
+#ifndef CONFIG_GPH_N35	
 	ret = nand_read(&nand_info[0], CFG_ENV_OFFSET, &total, (u_char*)env_ptr);
   	if (ret || total != CFG_ENV_SIZE)
 		return use_default();
+#else
+
+#endif
 
 	if (crc32(0, env_ptr->data, ENV_SIZE) != env_ptr->crc)
 		return use_default();

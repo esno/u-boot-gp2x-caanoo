@@ -110,6 +110,9 @@ env_t environment __PPCENV__ = {
 #if defined(CONFIG_BOOTARGS)
 	"bootargs="	CONFIG_BOOTARGS			"\0"
 #endif
+#if defined(CONFIG_RAMDISKARGS)
+	"rambootargs="	CONFIG_RAMDISKARGS			"\0"
+#endif
 #if defined(CONFIG_BOOTCOMMAND)
 	"bootcmd="	CONFIG_BOOTCOMMAND		"\0"
 #endif

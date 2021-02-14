@@ -69,6 +69,12 @@ uchar default_environment[] = {
 #ifdef	CONFIG_BOOTARGS
 	"bootargs="	CONFIG_BOOTARGS			"\0"
 #endif
+#if defined(CONFIG_RAMDISKARGS)
+	"ramdiskargs="	CONFIG_RAMDISKARGS			"\0"
+#endif
+#ifdef	CONFIG_BOOTARGS4K
+	"bootargs4k="	CONFIG_BOOTARGS4K			"\0"
+#endif
 #ifdef	CONFIG_BOOTCOMMAND
 	"bootcmd="	CONFIG_BOOTCOMMAND		"\0"
 #endif

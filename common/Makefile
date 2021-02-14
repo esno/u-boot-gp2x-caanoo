@@ -53,6 +53,23 @@ COBJS	= main.o ACEX1K.o altera.o bedbug.o circbuf.o \
 	  usb.o usb_kbd.o usb_storage.o \
 	  virtex2.o xilinx.o crc16.o xyzModem.o cmd_mac.o
 
+#COBJS	= main.o bedbug.o circbuf.o \
+#	  cmd_ace.o cmd_autoscript.o \
+#	  cmd_bdinfo.o cmd_bedbug.o cmd_boot.o cmd_bootm.o \
+#	  cmd_cache.o cmd_console.o \
+#      cmd_fat.o cmd_fdc.o cmd_fdos.o cmd_flash.o \
+#      cmd_load.o \
+#	  cmd_mem.o cmd_mii.o cmd_misc.o cmd_mmc.o cmd_nvedit.o \
+#	  command.o console.o devices.o dlmalloc.o docecc.o \
+#	  environment.o env_common.o \
+#	  env_flash.o \
+#     env_nowhere.o \
+#	  exports.o \
+#	  flash.o \
+#	  hush.o kgdb.o lists.o lynxkdi.o \
+#	  memsize.o \
+#	  serial.o crc16.o xyzModem.o
+      
 SRCS	:= $(AOBJS:.o=.S) $(COBJS:.o=.c)
 OBJS	:= $(addprefix $(obj),$(AOBJS) $(COBJS))
 

@@ -400,12 +400,30 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		printf ("Usage:\n%s\n", cmdtp->usage);
 		return 1;
 	}
-
+    
+    if(flag)
+    {
+        addr = CFG_FW_ADDR;
+        if(flag == CFG_FW_BOOT)
+        {
+            count = CFG_FW_BSIZE;
+            dest = CFG_FW_BDEST;
+        }
+        else if(flag == CFG_FW_KERNEL)    
+        {
+            count = CFG_FW_KSIZE;
+            dest = CFG_FW_KDEST;
+        }    
+        size = 1;
+        goto next_memcp;
+    }
+    
 	/* Check for size specification.
 	*/
 	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
 		return 1;
 
+	
 	addr = simple_strtoul(argv[1], NULL, 16);
 	addr += base_address;
 
@@ -418,9 +436,10 @@ int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		puts ("Zero length ???\n");
 		return 1;
 	}
+next_memcp:
 
 #ifndef CFG_NO_FLASH
-	/* check if we are copying to Flash */
+    /* check if we are copying to Flash */
 	if ( (addr2info(dest) != NULL)
 #ifdef CONFIG_HAS_DATAFLASH
 	   && (!addr_dataflash(addr))
