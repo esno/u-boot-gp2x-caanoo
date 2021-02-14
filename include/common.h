@@ -420,6 +420,12 @@ void	serial_puts   (const char *);
 int	serial_getc   (void);
 int	serial_tstc   (void);
 
+// ghcstop_pollux_add
+void uart1_tx_byte(unsigned char ch);
+void serial1_putc(const char c);
+void serial1_puts(const char *s);
+
+
 void	_serial_setbrg (const int);
 void	_serial_putc   (const char, const int);
 void	_serial_putc_raw(const char, const int);

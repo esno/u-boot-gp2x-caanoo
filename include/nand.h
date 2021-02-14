@@ -100,6 +100,7 @@ struct nand_erase_options {
 				 * (write appropriate cleanmarker blocks) */
 	int scrub;		/* if true, really clean NAND by erasing
 				 * bad blocks (UNSAFE) */
+    int format;	 			 
 };
 
 typedef struct nand_erase_options nand_erase_options_t;
