@@ -125,6 +125,7 @@ ifeq ($(ARCH),ppc)
 CROSS_COMPILE = powerpc-linux-
 endif
 ifeq ($(ARCH),arm)
+#CROSS_COMPILE = arm-gph-linux-gnueabi-
 CROSS_COMPILE = arm-linux-
 endif
 ifeq ($(ARCH),i386)
@@ -248,7 +249,7 @@ $(obj)u-boot.srec:	$(obj)u-boot
 
 $(obj)u-boot.bin:	$(obj)u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O binary $< $@
-
+		cp $@ polluxb-n35
 $(obj)u-boot.img:	$(obj)u-boot.bin
 		./tools/mkimage -A $(ARCH) -T firmware -C none \
 		-a $(TEXT_BASE) -e 0 \
@@ -1833,6 +1834,12 @@ omap1510inn_config :	unconfig
 omap5912osk_config :	unconfig
 	@$(MKCONFIG) $(@:_config=) arm arm926ejs omap5912osk NULL omap
 
+n35_config :	unconfig
+	@$(MKCONFIG) $(@:_config=) arm arm926ejs n35 NULL pollux
+
+n35_fast_config :	unconfig
+	@$(MKCONFIG) $(@:_config=) arm arm926ejs n35 NULL pollux
+
 omap1610inn_config \
 omap1610inn_cs0boot_config \
 omap1610inn_cs3boot_config \
@@ -2009,6 +2016,7 @@ pleb2_config	:	unconfig
 
 logodl_config	:	unconfig
 	@$(MKCONFIG) $(@:_config=) arm pxa logodl
+
 
 pdnb3_config	:	unconfig
 	@$(MKCONFIG) $(@:_config=) arm ixp pdnb3 prodrive
